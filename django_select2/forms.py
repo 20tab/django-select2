@@ -120,6 +120,16 @@ class Select2Mixin(object):
     media = property(_get_media)
 
 
+class Select2FreeMixin(object):
+    """Mixin to add select2 drop-in functionality."""
+
+    def build_attrs(self, *args, **kwargs):
+        """Add select2's tag attributes."""
+        self.attrs.setdefault('data-minimum-input-length', 1)
+        self.attrs.setdefault('data-tags', 'true')
+        return super(Select2FreeMixin, self).build_attrs(*args, **kwargs)
+
+
 class Select2TagMixin(object):
     """Mixin to add select2 tag functionality."""
 
@@ -149,6 +159,15 @@ class Select2Widget(Select2Mixin, forms.Select):
 
         class MyForm(forms.Form):
             my_choice = forms.ChoiceField(widget=Select2Widget)
+
+    """
+
+    pass
+
+
+class Select2FreeWidget(Select2FreeMixin, Select2Mixin, forms.Select):
+    """
+    Select2 drop in widget for on-the-fly instances creation.
 
     """
 
@@ -270,11 +289,28 @@ class HeavySelect2Mixin(object):
         """Render only selected options."""
         try:
             selected_choices, = args
-        except ValueError:  # Signature contained `choices` prior to Django 1.10
+        except ValueError:
+            # Signature contained `choices` prior to Django 1.10
             choices, selected_choices = args
             choices = chain(self.choices, choices)
         else:
             choices = self.choices
+        # SUPPORT FOR FREE WIDGETS
+        # check if all selected_choice are in choices
+        if not isinstance(selected_choices, (list, tuple)):
+            selected_choices = str(selected_choices).split(',')
+        missing_choices = selected_choices[:]
+        for outer_value_0, outer_value_1 in choices:
+            if isinstance(outer_value_1, (list, tuple)):
+                for inner_value_0, inner_value_1 in outer_value_1:
+                    if inner_value_0 in missing_choices:
+                        missing_choices.remove(inner_value_0)
+            else:
+                if outer_value_0 in missing_choices:
+                    missing_choices.remove(inner_value_0)
+        # find a text for missing ones and adds them to choices
+        for value in missing_choices:
+            choices.append((value, ''))
         output = ['<option value=""></option>' if not self.is_required and not self.allow_multiple_selected else '']
         selected_choices = {force_text(v) for v in selected_choices}
         choices = [(k, v) for k, v in choices if force_text(k) in selected_choices]
@@ -302,6 +338,12 @@ class HeavySelect2Widget(HeavySelect2Mixin, Select2Widget):
             )
 
     """
+
+    pass
+
+
+class HeavySelect2FreeWidget(HeavySelect2Mixin, Select2FreeWidget):
+    """Select2 free widget."""
 
     pass
 
@@ -556,6 +598,35 @@ class ModelSelect2MultipleWidget(ModelSelect2Mixin, HeavySelect2MultipleWidget):
     Select2 drop in model multiple select widget.
 
     Works just like :class:`.ModelSelect2Widget` but for multi select.
+    """
+
+    pass
+
+
+class ModelSelect2FreeWidget(ModelSelect2Mixin, HeavySelect2FreeWidget):
+    """
+    Select2 model widget with drop-in support.
+
+    This it not a simple drop in widget.
+    It requires to implement you own :func:`.value_from_datadict` method
+    in order to add dropped-in instances to your QuerySet.
+
+    Example::
+
+        class MyModelSelect2TagWidget(ModelSelect2TagWidget):
+            queryset = MyModel.objects.all()
+
+            def value_from_datadict(self, data, files, name):
+                value = super().value_from_datadict(self, data, files, name)
+                qs = self.queryset.get_or_create(target_field=force_text(value))
+                pks = set(force_text(getattr(o, pk)) for o in qs)
+                cleaned_values = []
+                for val in value:
+                    if force_text(val) not in pks:
+                        val = queryset.create(title=val).pk
+                    cleaned_values.append(val)
+                return cleaned_values
+
     """
 
     pass
