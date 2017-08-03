@@ -58,6 +58,7 @@ from django.db.models import Q
 from django.forms.models import ModelChoiceIterator
 from django.utils.encoding import force_text
 from django.utils.six.moves.cPickle import PicklingError as cPicklingError
+from django.utils.translation import get_language
 
 from .cache import cache
 from .conf import settings
@@ -112,8 +113,14 @@ class Select2Mixin(object):
         .. Note:: For more information visit
             https://docs.djangoproject.com/en/1.8/topics/forms/media/#media-as-a-dynamic-property
         """
+        try:
+            # get_language() will always return a lower case language code, where some files are named upper case.
+            i = [x.lower() for x in settings.SELECT2_I18N_AVAILABLE_LANGUAGES].index(get_language())
+            i18n_file = ('%s/%s.js' % (settings.SELECT2_I18N_PATH, settings.SELECT2_I18N_AVAILABLE_LANGUAGES[i]), )
+        except ValueError:
+            i18n_file = ()
         return forms.Media(
-            js=(settings.SELECT2_JS, 'django_select2/django_select2.js'),
+            js=(settings.SELECT2_JS,) + i18n_file + ('django_select2/django_select2.js',),
             css={'screen': (settings.SELECT2_CSS,)}
         )
 
@@ -176,6 +183,12 @@ class Select2TagWidget(Select2TagMixin, Select2Mixin, forms.SelectMultiple):
             def value_from_datadict(self, data, files, name):
                 values = super(MyWidget, self).value_from_datadict(data, files, name):
                 return ",".join(values)
+
+            def optgroups(self, name, value, attrs=None):
+                values = value[0].split(',') if value[0] else []
+                selected = set(values)
+                subgroup = [self.create_option(name, v, v, selected, i) for i, v in enumerate(values)]
+                return [(None, subgroup, 0)]
 
     """
 

@@ -3,10 +3,12 @@ from __future__ import absolute_import, unicode_literals
 
 import collections
 import json
+import os
 
 import pytest
 from django.core import signing
 from django.db.models import QuerySet
+from django.utils import translation
 from django.utils.encoding import force_text
 from django.utils.six import text_type
 from selenium.common.exceptions import NoSuchElementException
@@ -101,6 +103,41 @@ class TestSelect2Mixin(object):
         assert multiple_select.required is False
         assert multiple_select.widget.allow_multiple_selected
         assert '<option value=""></option>' not in multiple_select.widget.render('featured_artists', None)
+
+    def test_i18n(self):
+        translation.activate('de')
+        assert Select2Widget().media._js == [
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/i18n/de.js',
+            'django_select2/django_select2.js'
+        ]
+
+        translation.activate('en')
+        assert Select2Widget().media._js == [
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/i18n/en.js',
+            'django_select2/django_select2.js'
+        ]
+
+        translation.activate('00')
+        assert Select2Widget().media._js == [
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            'django_select2/django_select2.js'
+        ]
+
+        translation.activate('sr-cyrl')
+        assert Select2Widget().media._js == [
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/i18n/sr-Cyrl.js',
+            'django_select2/django_select2.js'
+        ]
+
+        translation.activate('zh-cn')
+        assert Select2Widget().media._js == [
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/select2.min.js',
+            '//cdnjs.cloudflare.com/ajax/libs/select2/4.0.3/js/i18n/zh-CN.js',
+            'django_select2/django_select2.js'
+        ]
 
 
 class TestSelect2MixinSettings(object):
@@ -341,10 +378,12 @@ class TestHeavySelect2MultipleWidget(object):
     form = forms.HeavySelect2MultipleWidgetForm()
     widget_cls = HeavySelect2MultipleWidget
 
+    @pytest.mark.xfail(bool(os.environ.get('CI', False)),
+                       reason='https://bugs.chromium.org/p/chromedriver/issues/detail?id=1772')
     def test_widgets_selected_after_validation_error(self, db, live_server, driver):
         driver.get(live_server + self.url)
-        WebDriverWait(driver, 60).until(
-            expected_conditions.presence_of_element_located((By.ID, 'it_title'))
+        WebDriverWait(driver, 3).until(
+            expected_conditions.presence_of_element_located((By.ID, 'id_title'))
         )
         title = driver.find_element_by_id('id_title')
         title.send_keys('fo')
@@ -355,7 +394,7 @@ class TestHeavySelect2MultipleWidget(object):
         driver.find_element_by_css_selector('.select2-results li:nth-child(2)').click()
         genres.submit()
         # there is a ValidationError raised, check for it
-        errstring = WebDriverWait(driver, 10).until(
+        errstring = WebDriverWait(driver, 3).until(
             expected_conditions.presence_of_element_located((By.CSS_SELECTOR, 'ul.errorlist li'))
         ).text
         assert errstring == "Title must have more than 3 characters."
