@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from __future__ import absolute_import, unicode_literals
 
+from django.contrib import admin
 from django.contrib.admin.sites import AdminSite
 from django.contrib.admin.widgets import RelatedFieldWidgetWrapper
 from django.forms.widgets import Select, SelectMultiple
 
-from django_select2.admin import (
-    Select2ModelAdmin, Select2StackedInline, Select2TabularInline,
-    Select2Widget
+from django_select2.admin import Select2InlineMixin, Select2ModelAdminMixin
+from django_select2.forms import (
+    ModelSelect2MultipleWidget, ModelSelect2Widget,
+    Select2Widget,
 )
-from django_select2.forms import ModelSelect2MultipleWidget, ModelSelect2Widget
 from tests.testapp.models import Album, Genre
 
 
@@ -31,7 +32,7 @@ class TestSelect2ModelAdmin(object):
 
     def test_widgets(self):
 
-        class AlbumModelAdmin(Select2ModelAdmin):
+        class AlbumModelAdmin(Select2ModelAdminMixin, admin.ModelAdmin):
             model = Album
             select2_fields = {
                 'artist': {
@@ -96,9 +97,9 @@ class TestSelect2ModelAdmin(object):
 class TestSelect2StackedInline(object):
     site = AdminSite()
 
-    def _test_inline(self, inline_class):
+    def test_inline(self):
 
-        class InlineAlbumModelAdmin(inline_class):
+        class InlineAlbumModelAdmin(Select2InlineMixin, admin.StackedInline):
             model = Album
             fk_name = 'primary_genre'
             select2_fields = {
@@ -143,9 +144,3 @@ class TestSelect2StackedInline(object):
         genres_field = admin_form.base_fields['genres']
         assert isinstance(genres_field.widget, RelatedFieldWidgetWrapper)
         assert isinstance(genres_field.widget.widget, SelectMultiple)
-
-    def test_stacked_inline(self):
-        self._test_inline(Select2StackedInline)
-
-    def test_tabular_inline(self):
-        self._test_inline(Select2TabularInline)
